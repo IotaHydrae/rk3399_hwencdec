@@ -151,11 +151,12 @@ typedef struct _RockchipRga {
     void *priv;
 } RockchipRga;
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-RockchipRga *RgaCreate(void);
-void RgaDestroy(RockchipRga *rga);
+extern RockchipRga *RgaCreate(void);
+extern void RgaDestroy(RockchipRga *rga);
 #ifdef __cplusplus
 }
 #endif

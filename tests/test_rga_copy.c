@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <rockchip_rga/rockchip_rga.h>
+#include "rockchip_rga/rockchip_rga.h"
 
 #define BUF_WIDTH 4096
 #define BUF_HEIGHT 2160
@@ -41,7 +41,7 @@ int get_elapse_in_ms(struct timeval *tv)
 void make_random_data()
 {
 	int rand_fd;
-	rand_fd = open("/dev/random", O_RDONLY);
+	rand_fd = open("/dev/urandom", O_RDONLY);
 	/*unsigned char *rand_base;
 	
 	rand_base = (unsigned char *)mmap(NULL, BUF_SIZE,PROT_READ,MAP_SHARED,rand_fd,0);
@@ -58,21 +58,23 @@ void check_data()
 {
 	for(int i=0;i<BUF_SIZE;i++){
 		if(srcBuffer[i]!=dstBuffer[i]){
-			printf("[DIFF at %d] val:%d\n", i, srcBuffer[i]);
+			printf("[DIFF at pos:%d] src: [%d] dst: [%d]\n", i, srcBuffer[i], dstBuffer[i]);
 		}
 	}
 }
 
 void rga_copy()
 {
-	RockchipRga *mRga;
+	RockchipRga *mRga = RgaCreate();
 	if(!mRga){
 		printf("create rga failed!\n");
 		return;
 	}
 	mRga->ops->initCtx(mRga);
 	mRga->ops->setSrcFormat(mRga, V4L2_PIX_FMT_ABGR32, BUF_WIDTH, BUF_HEIGHT);
-	mRga->ops->setDstFormat(mRga, V4L2_PIX_FMT_ABGR32, BUF_WIDTH, BUF_HEIGHT);
+	mRga->ops->setDstFormat(mRga, V4L2_PIX_FMT_YUYV, BUF_WIDTH, BUF_HEIGHT);
+	
+	
 
 	mRga->ops->setSrcBufferPtr(mRga, srcBuffer);
 	mRga->ops->setDstBufferPtr(mRga, dstBuffer);
@@ -91,13 +93,16 @@ int main(int argc, char **argv)
 	gettimeofday(&tv, NULL);
 	memcpy(dstBuffer, srcBuffer, BUF_SIZE);
 	//printf("%d\n", srcBuffer[20]);
-	printf("elapse time: %d ms\n",get_elapse_in_ms(&tv));
+	printf("[memcpy] elapse time: %d ms\n",get_elapse_in_ms(&tv));
 	check_data();
 
 	gettimeofday(&tv, NULL);
 	rga_copy();
-	printf("elapse time: %d ms\n",get_elapse_in_ms(&tv));
+	printf("[rgacpy] elapse time: %d ms\n",get_elapse_in_ms(&tv));
 	check_data();
+
+	free(srcBuffer);
+	free(dstBuffer);
 	
 	return 0;
 }
