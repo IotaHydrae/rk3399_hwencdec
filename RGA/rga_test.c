@@ -417,7 +417,7 @@ int main(int argc, char **argv)
 	// gettimeofday(&tv, NULL);
 	rga_copy();
 	// printf("[rgacpy] elapse time: %d ms\n",get_elapse_in_ms(&tv));
-	// check_data();
+	// check_data_dma();
 	printf("data haven't been checked!\n");
 
 	free(srcBuffer);
