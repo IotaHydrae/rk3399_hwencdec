@@ -34,6 +34,13 @@ rga_info_t src1;
 
 extern int  c_RkRgaBlit(rga_info_t *src, rga_info_t *dst, rga_info_t *src1);
 
+/**
+ * @brief 
+ * 
+ * @param
+ * 
+ * @return
+ */
 int get_elapse_in_ms(struct timeval *tv)
 {
 	struct timeval this_tv;
@@ -51,6 +58,37 @@ int get_elapse_in_ms(struct timeval *tv)
 	return elapse_in_ms;
 }
 
+/**
+ * @brief get time elapse in us
+ * 
+ * @param timeval tv 
+ * 
+ * @return
+ */
+int get_elapse_in_us(struct timeval *tv)
+{
+	struct timeval this_tv;
+	
+	gettimeofday(&this_tv, NULL);
+	uint64_t diff_sec = this_tv.tv_sec - tv->tv_sec;
+	int elapse_in_us;
+
+
+	if(diff_sec==0){
+		elapse_in_us = (this_tv.tv_usec - tv->tv_usec);
+	}else{
+		elapse_in_us = ((--diff_sec) * 1000000)+ ((1000000 - tv->tv_usec)+this_tv.tv_usec);
+	}
+	return elapse_in_us;
+}
+
+/**
+ * @brief 
+ * 
+ * @param
+ * 
+ * @return
+ */
 void make_random_data()
 {
 	int rand_fd;
@@ -265,7 +303,6 @@ int rga_copy()
 	printf("arg  %u %u %lu \n", arg.handle, arg.pitch, arg.size);
 	printf("arg2 %u %u %lu \n", arg2.handle, arg2.pitch, arg2.size);
 
-
 	/*
 	//  create a dumb scanout buffer 
 struct drm_mode_create_dumb {
@@ -280,8 +317,6 @@ struct drm_mode_create_dumb {
 };
 	*/
 
-
-
 	bo_src.fd = drm_fd;
 	bo_src.handle=arg.handle;
 	bo_src.size = arg.size;
@@ -292,7 +327,7 @@ struct drm_mode_create_dumb {
 	bo_dst.size = arg2.size;
 	bo_dst.pitch = arg2.pitch;
 
-	/* get map */
+	/* map  dumb */
 	struct drm_mode_map_dumb arg_map_src;
 	struct drm_mode_map_dumb arg_map_dst;
 	void *map_src;
@@ -347,8 +382,12 @@ struct drm_mode_create_dumb {
 
 	gettimeofday(&tv, NULL);
 	c_RkRgaBlit(&src, &dst, NULL);
-	printf("[c_RkRgaBlit with phyAddr] elapse time: %d ms\n",get_elapse_in_ms(&tv));
-	close(drm_fd);
+	printf("[c_RkRgaBlit with phyAddr] elapse time: %d us\n",get_elapse_in_us(&tv));
+
+
+	// close(drm_fd);
+	// munmap(map_src, BUF_SIZE);
+	// munmap(map_dst, BUF_SIZE);
 }
 
 int main(int argc, char **argv)
@@ -367,7 +406,7 @@ int main(int argc, char **argv)
 	gettimeofday(&tv, NULL);
 	memcpy(dstBuffer, srcBuffer, BUF_SIZE);
 	//printf("%d\n", srcBuffer[20]);
-	printf("[memcpy] elapse time: %d ms\n",get_elapse_in_ms(&tv));
+	printf("[memcpy] elapse time: %d us\n",get_elapse_in_us(&tv));
 	check_data();
 	memset(dstBuffer, 0x0, BUF_SIZE);
 
