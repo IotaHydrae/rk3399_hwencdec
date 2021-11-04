@@ -13,8 +13,8 @@
 
 #include "rockchip_rga/rockchip_rga.h"
 
-#define BUF_WIDTH 4096
-#define BUF_HEIGHT 2160
+#define BUF_WIDTH RGA_ALIGN(4096, 16)
+#define BUF_HEIGHT RGA_ALIGN(2160, 16)
 
 #define BUF_SIZE (BUF_WIDTH*BUF_HEIGHT*4)
 
@@ -72,7 +72,7 @@ void rga_copy()
 	}
 	mRga->ops->initCtx(mRga);
 	mRga->ops->setSrcFormat(mRga, V4L2_PIX_FMT_ABGR32, BUF_WIDTH, BUF_HEIGHT);
-	mRga->ops->setDstFormat(mRga, V4L2_PIX_FMT_YUYV, BUF_WIDTH, BUF_HEIGHT);
+	mRga->ops->setDstFormat(mRga, V4L2_PIX_FMT_ABGR32, BUF_WIDTH, BUF_HEIGHT);
 	
 	
 
