@@ -14,7 +14,7 @@
 
 #include <linux/videodev2.h>
 
-#define DEFAULT_CAMERA_PATH "/dev/video1"
+#define DEFAULT_CAMERA_PATH "/dev/video0"
 
 int query_list[] = {
     // VIDIOC_REQBUFS   ：分配内存
@@ -33,6 +33,18 @@ int query_list[] = {
     // VIDIOC_STREAMOFF ,//：结束视频显示函数
     VIDIOC_QUERYSTD, //：检查当前视频设备支持的标准，例如PAL或NTSC。
 };
+
+int                        m_fd;
+int                        m_rb_count;
+int                        m_rb_current;
+int                        m_total_bytes;
+struct v4l2_capability     m_cap;
+struct v4l2_format         m_fmt;
+struct v4l2_fmtdesc        m_desc_fmt;
+struct v4l2_requestbuffers m_rb;
+struct v4l2_buffer         m_buf;
+struct v4l2_frmsizeenum    m_frmsize;
+int                        m_max_vide_buff_size;
 
 int query_video_info(int fd, int request)
 {
@@ -71,13 +83,20 @@ int main(int argc, char **argv)
         perror("error on ioctl!");
         return -errno;
     }
-    printf("%s\n", v4l2_cap.driver);
-    printf("%s\n", v4l2_cap.card);
-    printf("%s\n", v4l2_cap.bus_info);
 
-    printf("%d\n", v4l2_cap.version);
-    printf("%d\n", v4l2_cap.capabilities);
-    printf("%d\n", v4l2_cap.device_caps);
+	if(v4l2_cap.capabilities & V4L2_CAP_STREAMING)
+	{
+		fprintf(stderr, "support streaming i/o\n");
+	}
+
+	if(v4l2_cap.capabilities & V4L2_CAP_READWRITE) 
+	{
+		fprintf(stderr, "support read i/o\n");
+	}
     
+    //support format
+	memset(&m_desc_fmt, 0, sizeof(m_desc_fmt));
+	m_desc_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
     return 0;
 }
