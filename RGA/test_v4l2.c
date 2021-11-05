@@ -14,7 +14,8 @@
 
 #include <linux/videodev2.h>
 
-#define DEFAULT_CAMERA_PATH "/dev/video0"
+#define DEFAULT_CAMERA_PATH "/dev/video1"
+
 
 int query_list[] = {
     // VIDIOC_REQBUFS   ：分配内存
@@ -97,6 +98,43 @@ int main(int argc, char **argv)
     //support format
 	memset(&m_desc_fmt, 0, sizeof(m_desc_fmt));
 	m_desc_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	 ioctl(m_fd, VIDIOC_ENUM_FMT, &m_desc_fmt);
+	printf("pixelformat: 0x%x\n", m_desc_fmt.pixelformat);
+
+	while(0 <= (ret = ioctl(m_fd, VIDIOC_ENUM_FMT, &m_desc_fmt))) 
+	{
+		printf("pixelformat: 0x%x\n", m_desc_fmt.pixelformat);
+
+		if(V4L2_PIX_FMT_MJPEG == m_desc_fmt.pixelformat)
+		{
+			printf("support pixelformat MJPEG\n");
+		}
+
+		if(V4L2_PIX_FMT_RGB565 == m_desc_fmt.pixelformat)
+		{
+			printf("support pixelformat RGB565\n");
+		}
+
+		if(V4L2_PIX_FMT_YUYV == m_desc_fmt.pixelformat)
+		{
+			printf("support pixelformat YUYV\n");
+		}
+
+		m_frmsize.pixel_format = m_desc_fmt.pixelformat;
+		m_frmsize.index = 0;
+		while(0 <= ioctl(m_fd, VIDIOC_ENUM_FRAMESIZES, &m_frmsize))
+		{
+			if(V4L2_FRMSIZE_TYPE_DISCRETE == m_frmsize.type ||
+				V4L2_FRMSIZE_TYPE_STEPWISE == m_frmsize.type)
+			{
+				printf("support frmsize:%d-%d\n",
+						m_frmsize.discrete.width, m_frmsize.discrete.height);
+			}
+			m_frmsize.index++;
+		}
+
+		m_desc_fmt.index++;
+	}
 
     return 0;
 }
