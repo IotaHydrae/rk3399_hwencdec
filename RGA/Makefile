@@ -1,10 +1,12 @@
-CC:=/opt/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc
-LD:=/opt/aarch64-linux-gnu/bin/aarch64-linux-gnu-ld
+TOOLCHAIN_DIR:=/opt/gcc-linaro-7.5.0-2019.12-x86_64_aarch64-linux-gnu
 
-CXX:=/opt/aarch64-linux-gnu/bin/aarch64-linux-gnu-g++
+CC:=$(TOOLCHAIN_DIR)/bin/aarch64-linux-gnu-gcc
+LD:=$(TOOLCHAIN_DIR)/bin/aarch64-linux-gnu-ld
 
-CFLAGS+=-I/opt/aarch64-linux-gnu/include -L/opt/aarch64-linux-gnu/lib
-CXXFLAGS+=-I/opt/aarch64-linux-gnu/include -L/opt/aarch64-linux-gnu/lib
+CXX:=$(TOOLCHAIN_DIR)/bin/aarch64-linux-gnu-g++
+
+CFLAGS+=-I$(TOOLCHAIN_DIR)/include -L$(TOOLCHAIN_DIR)/lib
+CXXFLAGS+=-I$(TOOLCHAIN_DIR)/include -L$(TOOLCHAIN_DIR)/lib
 
 LDFLAGS+=-lrga
 
@@ -32,3 +34,4 @@ scp:
 clean:
 	rm -f $(OUTPUT)
 	rm -f test
+

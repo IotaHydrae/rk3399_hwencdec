@@ -1,0 +1,3 @@
+[submodule "tests/linux-rga"]
+	path = tests/linux-rga
+	url = https://github.com/rockchip-linux/linux-rga
