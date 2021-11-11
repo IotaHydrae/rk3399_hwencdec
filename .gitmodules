@@ -4,3 +4,9 @@
 [submodule "learnopengl"]
 	path = learnopengl
 	url = https://gitee.com/jensenhua/learnopengl
+[submodule ".\\MPP\\mpp\\"]
+	path = .\\MPP\\mpp\\
+	url = https://gitee.com/rock-chip/mpp.git
+[submodule ".\\MPP\\mpp_linux_cpp\\"]
+	path = .\\MPP\\mpp_linux_cpp\\
+	url = https://gitee.com/rock-chip/mpp_linux_cpp
