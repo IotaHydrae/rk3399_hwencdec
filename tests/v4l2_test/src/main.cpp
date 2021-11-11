@@ -2,6 +2,7 @@
 #include <time.h>
 #include "v4l2_capturer.h"
 
+/* TODO: listen SIGINT and call capturer.stop() when it come. */
 int main(int argc, char const *argv[])
 {
     std::cout << "Hello World!" << std::endl;
