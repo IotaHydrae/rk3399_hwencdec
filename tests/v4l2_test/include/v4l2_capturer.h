@@ -47,7 +47,6 @@ public:
     int get_frame();
     int save_fbdata_to_file(const char *path);
     int save_fbdata_to_file_by_mmap(const char *path);
-    void query_supported_format();
     void query_supported_format_new();
 
     bool frameSaveImage(const char *file_path);

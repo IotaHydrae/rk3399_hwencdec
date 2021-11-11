@@ -29,7 +29,7 @@ int main(int argc, char const *argv[])
 
 	while(1){
 	    frame_count=capturer.get_frame();
-	    if(frame_count==25*3)break;
+	    if(frame_count==25*10)break;
 	}
 	/*capturer.get_frame();
     capturer.save_fbdata_to_file_by_mmap("./out.jpg");*/
