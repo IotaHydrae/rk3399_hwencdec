@@ -128,18 +128,6 @@ int v4l2_capturer::get_frame()
     int ret;
 	static int frame_count=1;
     struct v4l2_buffer v4lbuffer;
-	   /* blocked here */
-    /*struct pollfd my_pfds[1];
-    LOG_DEBUG("***get frame.");
-    my_pfds[0].fd = m_fd;
-    my_pfds[0].events = POLLIN;
-    my_pfds[0].revents = POLLIN;
- 
-    ret = poll(my_pfds, 1, -1);
-    if(ret < 0) {
-        perror("poll failed!");
-        return ret;
-    }*/
 
     /* pop fb from queue */
     memset(&v4lbuffer, 0x0, sizeof(v4lbuffer));
@@ -153,37 +141,41 @@ int v4l2_capturer::get_frame()
     m_total_bytes = v4lbuffer.bytesused;
 
 
-	int ffd;
+	int out_fd;
     unsigned char *file_base;
-	char jpeg_fname[50];
-	sprintf(jpeg_fname, "./abc_%04d.jpeg", frame_count);
-//    struct v4l2_buffer v4lbuffer;
+	char out_fname[50];
+	sprintf(out_fname, "./abc_%04d.jpeg", frame_count);
+
     LOG_DEBUG("***save_fbdata_to_file by mmap.");
-    ffd = open(jpeg_fname, O_RDWR | O_CREAT | O_TRUNC, 0755);
-    if(ffd < 0) {
+    out_fd = open(out_fname, O_RDWR | O_CREAT | O_TRUNC, 0755);
+    if(out_fd < 0) {
         perror("open path failed!");
-        return ffd;
+        return out_fd;
     }
+	
     /* make file length */
-    lseek(ffd, m_total_bytes - 1, SEEK_END);
-    write(ffd, "", 1);   /* because of COW? */
+    lseek(out_fd, m_total_bytes - 1, SEEK_END);
+    write(out_fd, "", 1);   /* because of COW? */
     printf("total_bytes:%d\n", m_total_bytes);
     printf("current:%d\n", m_rb_current);
+	
     /* write operation here */
     file_base = (unsigned char *)mmap(NULL, m_total_bytes,
                                       PROT_READ | PROT_WRITE,
                                       MAP_SHARED,
-                                      ffd, 0);
+                                      out_fd, 0);
     if(file_base == MAP_FAILED) {
         perror("mmap file failed!");
         return -1;
     }
+	
     LOG_DEBUG("memcpying...");
     memcpy(file_base, m_video_buffers[m_rb_current].start, m_total_bytes);
     /* release the resource */
     munmap(file_base, m_total_bytes);
-    close(ffd);
+    close(out_fd);
 	frame_count++;
+	
     /* push back fb to queue */
     LOG_DEBUG("push back fb to queue");
     memset(&v4lbuffer, 0x0, sizeof(v4lbuffer));

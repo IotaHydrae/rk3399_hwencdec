@@ -94,14 +94,6 @@ void make_random_data()
 {
 	int rand_fd;
 	rand_fd = open("/dev/urandom", O_RDONLY);
-	/*unsigned char *rand_base;
-
-    rand_base = (unsigned char *)mmap(NULL, BUF_SIZE,PROT_READ,MAP_SHARED,rand_fd,0);
-    perror("rand_base");
-    printf("mmap done\n");
-    memcpy(srcBuffer, rand_base, BUF_SIZE);
-
-    munmap(rand_base, BUF_SIZE);*/
 	read(rand_fd, srcBuffer, BUF_SIZE);
 	close(rand_fd);
 }
@@ -126,149 +118,6 @@ void rga_copy_vir()
 	rga_set_rect(&dst.rect, 0, 0, BUF_WIDTH, BUF_HEIGHT, BUF_WIDTH, BUF_HEIGHT, RK_FORMAT_RGBA_8888);
 
 	c_RkRgaBlit(&src, &dst, NULL);
-}
-
-void rga_copy_dma_fd()
-{
-	int ret;
-	bo_t bo_src, bo_dst;
-	struct timeval tv;
-
-	memset(&bo_src, 0x0, sizeof(bo_t));
-	memset(&bo_dst, 0x0, sizeof(bo_t));
-
-	c_RkRgaGetAllocBuffer(&bo_src, BUF_WIDTH, BUF_HEIGHT, 32);
-	c_RkRgaGetAllocBuffer(&bo_dst, BUF_WIDTH, BUF_HEIGHT, 32);
-
-	c_RkRgaGetMmap(&bo_src);
-	c_RkRgaGetMmap(&bo_dst);
-	memset(&src, 0x0, sizeof(rga_info_t));
-	src.fd = -1;
-	src.mmuFlag = 1;
-	memset(&dst, 0x0, sizeof(rga_info_t));
-	dst.fd = -1;
-	dst.mmuFlag = 1;
-
-	printf("bo_src ptr %p\n", bo_src.ptr);
-
-	ret = c_RkRgaGetBufferFd(&bo_src, &src.fd);
-	if (ret)
-	{
-		fprintf(stderr, "can't get buffer fd of src!\n");
-		perror("c_RkRgaGetBufferFd src");
-	}
-
-	printf("Buffer fd of src: %d\n", src.fd);
-
-	ret = c_RkRgaGetBufferFd(&bo_dst, &dst.fd);
-	if (ret)
-	{
-		fprintf(stderr, "can't get buffer fd of dst!\n");
-		perror("c_RkRgaGetBufferFd dst");
-	}
-
-	printf("Buffer fd of src: %d\n", dst.fd);
-
-	rga_set_rect(&src.rect, 0, 0, BUF_WIDTH, BUF_HEIGHT, BUF_WIDTH, BUF_HEIGHT, RK_FORMAT_RGBA_8888);
-	rga_set_rect(&dst.rect, 0, 0, BUF_WIDTH, BUF_HEIGHT, BUF_WIDTH, BUF_HEIGHT, RK_FORMAT_RGBA_8888);
-
-	gettimeofday(&tv, NULL);
-	c_RkRgaBlit(&src, &dst, NULL);
-	printf("[c_RkRgaBlit] elapse time: %d ms\n", get_elapse_in_ms(&tv));
-}
-
-int syber_rga_copy_dma_test()
-{
-	bo_t bo_src, bo_dst;
-	int buff_fd_src, buff_fd_dst;
-	struct timeval tv;
-
-	static const char *card = "/dev/dri/card0";
-	int drm_fd;
-	int flag = O_RDWR;
-	drm_fd = open(card, flag);
-	if (drm_fd < 0)
-	{
-		fprintf(stderr, "Fail to open %s: %m\n", card);
-		return -errno;
-	}
-
-	/* create dumb */
-	struct drm_mode_create_dumb arg;
-	struct drm_mode_create_dumb arg2;
-	int ret;
-
-	memset(&arg, 0, sizeof(arg));
-	arg.bpp = 32;
-	arg.width = BUF_WIDTH;
-	arg.height = BUF_HEIGHT;
-
-	memset(&arg2, 0, sizeof(arg2));
-	arg2.bpp = 32;
-	arg2.width = BUF_WIDTH;
-	arg2.height = BUF_HEIGHT;
-	// arg.flags = 0;
-
-	ret = ioctl(drm_fd, DRM_IOCTL_MODE_CREATE_DUMB, &arg);
-	if (ret)
-	{
-		fprintf(stderr, "can't alloc drm dumb buffer src!\n");
-		return -errno;
-	}
-
-	ret = ioctl(drm_fd, DRM_IOCTL_MODE_CREATE_DUMB, &arg2);
-	if (ret)
-	{
-		fprintf(stderr, "can't alloc drm dumb buffer dst!\n");
-		return -errno;
-	}
-
-	bo_src.fd = drm_fd;
-	bo_src.handle = arg.handle;
-	bo_src.size = arg.size;
-	bo_src.pitch = arg.pitch;
-
-	bo_dst.fd = drm_fd;
-	bo_dst.handle = arg2.handle;
-	bo_dst.size = arg2.size;
-	bo_dst.pitch = arg2.pitch;
-
-	printf("arg  %u %u %lu \n", arg.handle, arg.pitch, arg.size);
-	printf("arg2 %u %u %lu \n", arg2.handle, arg2.pitch, arg2.size);
-
-	c_RkRgaGetMmap(&bo_src);
-	c_RkRgaGetMmap(&bo_dst);
-	memset(&src, 0x0, sizeof(rga_info_t));
-	memset(&dst, 0x0, sizeof(rga_info_t));
-	src.fd = -1;
-	dst.fd = -1;
-	src.mmuFlag = 1;
-	dst.mmuFlag = 1;
-
-	ret = c_RkRgaGetBufferFd(&bo_src, &src.fd);
-	if (ret)
-	{
-		fprintf(stderr, "can't get buffer fd of src!\n");
-		perror("c_RkRgaGetBufferFd src");
-		return;
-	}
-	printf("Buffer fd of src: %d\n", src.fd);
-
-	c_RkRgaGetBufferFd(&bo_dst, &dst.fd);
-	if (ret)
-	{
-		fprintf(stderr, "can't get buffer fd of dst!\n");
-		perror("c_RkRgaGetBufferFd dst");
-		return;
-	}
-	printf("Buffer fd of src: %d\n", dst.fd);
-
-	rga_set_rect(&src.rect, 0, 0, BUF_WIDTH, BUF_HEIGHT, BUF_WIDTH, BUF_HEIGHT, RK_FORMAT_RGBA_8888);
-	rga_set_rect(&dst.rect, 0, 0, BUF_WIDTH, BUF_HEIGHT, BUF_WIDTH, BUF_HEIGHT, RK_FORMAT_RGBA_8888);
-
-	gettimeofday(&tv, NULL);
-	c_RkRgaBlit(&src, &dst, NULL);
-	printf("[c_RkRgaBlit] elapse time: %d ms\n", get_elapse_in_ms(&tv));
 }
 
 int rga_copy()
@@ -410,7 +259,6 @@ int rga_copy()
 	rga_set_rect(&src.rect, 0, 0, BUF_WIDTH, BUF_HEIGHT, BUF_WIDTH, BUF_HEIGHT, RK_FORMAT_RGBA_8888);
 	rga_set_rect(&dst.rect, 0, 0, BUF_WIDTH, BUF_HEIGHT, BUF_WIDTH, BUF_HEIGHT, RK_FORMAT_RGBA_8888);
 
-	// src.sync_mode=RGA_BLIT_SYNC;
 	memcpy(map_src, srcBuffer, BUF_SIZE);
 	printf("%p\n", map_src);
 
@@ -418,16 +266,6 @@ int rga_copy()
 	c_RkRgaBlit(&src, &dst, NULL);
 	printf("[c_RkRgaBlit with phyAddr] elapse time: %d us\n", get_elapse_in_us(&tv));
 
-	// uint8_t *tmp_src_ptr = map_src;
-	// uint8_t *tmp_dst_ptr = map_dst;
-	// /* check data */
-	// for (int i = 0; i < BUF_SIZE; i++)
-	// {
-	// 	if (tmp_src_ptr[i] != *tmp_dst_ptr[i])
-	// 	{
-	// 		printf("[diff at pos: %d] src: [%d] dst: [%d]\n", i, tmp_src_ptr[i], tmp_dst_ptr[i]);
-	// 	}
-	// }
 
 	/**
 	 * Destroy the dumb, did last.
@@ -451,7 +289,6 @@ int rga_copy()
 
 int main(int argc, char **argv)
 {
-	// int buff_fd;
 	struct timeval tv;
 
 	srcBuffer = (unsigned char *)malloc(BUF_SIZE);
@@ -464,15 +301,12 @@ int main(int argc, char **argv)
 
 	gettimeofday(&tv, NULL);
 	memcpy(dstBuffer, srcBuffer, BUF_SIZE);
-	//printf("%d\n", srcBuffer[20]);
+
 	printf("[memcpy] elapse time: %d us\n", get_elapse_in_us(&tv));
 	check_data();
 	memset(dstBuffer, 0x0, BUF_SIZE);
 
-	// printf("testing alloc arm!\n");
-	// buff_fd = test_alloc_drm();
 
-	// rga_copy_dma_fd();
 	gettimeofday(&tv, NULL);
 	rga_copy_vir();
 	printf("[rgacpy with virAddr] elapse time: %d us\n",get_elapse_in_us(&tv));
