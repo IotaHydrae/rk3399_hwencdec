@@ -96,12 +96,15 @@
 class Mpp
 {
 public:
-    Mpp();
+    Mpp(MppCtx ctx);
     ~Mpp();
     MPP_RET init(MppCtxType type, MppCodingType coding);
 
     MPP_RET start();
     MPP_RET stop();
+
+    MPP_RET pause();
+    MPP_RET resume();
 
     MPP_RET put_packet(MppPacket packet);
     MPP_RET get_frame(MppFrame *frame);
@@ -170,6 +173,7 @@ public:
     MppTask         mInputTask;
     MppTask         mEosTask;
 
+    MppCtx          mCtx;
     MppDec          mDec;
     MppEnc          mEnc;
 

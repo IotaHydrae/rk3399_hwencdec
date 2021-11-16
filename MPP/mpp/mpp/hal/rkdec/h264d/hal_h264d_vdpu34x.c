@@ -31,6 +31,7 @@
 #include "hal_h264d_global.h"
 #include "hal_h264d_vdpu34x.h"
 #include "vdpu34x_h264d.h"
+#include "mpp_dec_cb_param.h"
 
 /* Number registers for the decoder */
 #define DEC_VDPU34X_REGISTERS       276
@@ -43,7 +44,7 @@
 #define H264_CTU_SIZE               16
 
 #define VDPU34X_CABAC_TAB_ALIGNED_SIZE      (MPP_ALIGN(VDPU34X_CABAC_TAB_SIZE, SZ_4K))
-#define VDPU34X_ERROR_INFO_ALIGNED_SIZE     (MPP_ALIGN(VDPU34X_ERROR_INFO_SIZE, SZ_4K))
+#define VDPU34X_ERROR_INFO_ALIGNED_SIZE     (0)
 #define VDPU34X_SPSPPS_ALIGNED_SIZE         (MPP_ALIGN(VDPU34X_SPSPPS_SIZE, SZ_4K))
 #define VDPU34X_RPS_ALIGNED_SIZE            (MPP_ALIGN(VDPU34X_RPS_SIZE, SZ_4K))
 #define VDPU34X_SCALING_LIST_ALIGNED_SIZE   (MPP_ALIGN(VDPU34X_SCALING_LIST_SIZE, SZ_4K))
@@ -610,10 +611,7 @@ static MPP_RET set_registers(H264dHalCtx_t *p_hal, Vdpu34xH264dRegSet *regs, Hal
         regs->common_addr.reg129_rlcwrite_base = regs->common_addr.reg128_rlc_base;
 
         regs->h264d_addr.cabactbl_base = reg_ctx->bufs_fd;
-        MppDevRegOffsetCfg trans_cfg;
-        trans_cfg.reg_idx = 197;
-        trans_cfg.offset = reg_ctx->offset_cabac;
-        mpp_dev_ioctl(p_hal->dev, MPP_DEV_REG_OFFSET, &trans_cfg);
+        mpp_dev_set_reg_offset(p_hal->dev, 197, reg_ctx->offset_cabac);
     }
 
     return MPP_OK;
@@ -1069,10 +1067,10 @@ MPP_RET vdpu34x_h264d_wait(void *hal, HalTaskInfo *task)
 
 __SKIP_HARD:
     if (p_hal->dec_cb) {
-        DecCbHalDone m_ctx;
+        DecCbHalDone param;
 
-        m_ctx.task = (void *)&task->dec;
-        m_ctx.regs = (RK_U32 *)p_regs;
+        param.task = (void *)&task->dec;
+        param.regs = (RK_U32 *)p_regs;
 
         if (p_regs->irq_status.reg224.dec_error_sta ||
             (!p_regs->irq_status.reg224.dec_rdy_sta) ||
@@ -1080,11 +1078,11 @@ __SKIP_HARD:
             p_regs->irq_status.reg226.strmd_error_status ||
             p_regs->irq_status.reg227.colmv_error_ref_picidx ||
             p_regs->irq_status.reg225.strmd_detect_error_flag)
-            m_ctx.hard_err = 1;
+            param.hard_err = 1;
         else
-            m_ctx.hard_err = 0;
+            param.hard_err = 0;
 
-        mpp_callback(p_hal->dec_cb, DEC_PARSER_CALLBACK, &m_ctx);
+        mpp_callback(p_hal->dec_cb, &param);
     }
     memset(&p_regs->irq_status.reg224, 0, sizeof(RK_U32));
     if (p_hal->fast_mode) {

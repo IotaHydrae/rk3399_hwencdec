@@ -32,6 +32,7 @@
 #include "mpp_dec_cfg_impl.h"
 
 #include "mpp_dec_vproc.h"
+#include "mpp_dec_cb_param.h"
 
 static RK_U32 mpp_dec_debug = 0;
 
@@ -202,6 +203,18 @@ static MPP_RET dec_release_task_in_port(MppPort port)
     return ret;
 }
 
+static void dec_release_input_packet(MppDecImpl *dec, RK_S32 force)
+{
+    if (dec->mpp_pkt_in) {
+        if (force || 0 == mpp_packet_get_length(dec->mpp_pkt_in)) {
+            mpp_packet_deinit(&dec->mpp_pkt_in);
+
+            mpp_dec_callback(dec, MPP_DEC_EVENT_ON_PKT_RELEASE, dec->mpp_pkt_in);
+            dec->mpp_pkt_in = NULL;
+        }
+    }
+}
+
 static RK_U32 reset_parser_thread(Mpp *mpp, DecTask *task)
 {
     MppDecImpl *dec = (MppDecImpl *)mpp->mDec;
@@ -264,10 +277,7 @@ static RK_U32 reset_parser_thread(Mpp *mpp, DecTask *task)
             task->status.task_parsed_rdy = 0;
         }
 
-        if (dec->mpp_pkt_in) {
-            mpp_packet_deinit(&dec->mpp_pkt_in);
-            dec->mpp_pkt_in = NULL;
-        }
+        dec_release_input_packet(dec, 1);
 
         while (MPP_OK == mpp_buf_slot_dequeue(frame_slots, &index, QUEUE_DISPLAY)) {
             /* release extra ref in slot's MppBuffer */
@@ -422,6 +432,14 @@ MPP_RET mpp_dec_proc_cfg(MppDecImpl *dec, MpiCmd cmd, void *param)
         }
 
         dec_dbg_func("set dec cfg\n");
+    } break;
+    case MPP_DEC_GET_CFG: {
+        MppDecCfgImpl *dec_cfg = (MppDecCfgImpl *)param;
+
+        if (dec_cfg)
+            memcpy(&dec_cfg->cfg, &dec->cfg, sizeof(dec->cfg));
+
+        dec_dbg_func("get dec cfg\n");
     } break;
     default : {
     } break;
@@ -581,6 +599,8 @@ static void mpp_dec_put_frame(Mpp *mpp, RK_S32 index, HalDecTaskFlag flags)
 
         if (fake_frame)
             mpp_frame_deinit(&frame);
+
+        mpp_dec_callback(dec, MPP_DEC_EVENT_ON_FRM_READY, out);
     }
 }
 
@@ -803,10 +823,7 @@ static MPP_RET try_proc_dec_task(Mpp *mpp, DecTask *task)
         mpp_parser_prepare(dec->parser, dec->mpp_pkt_in, task_dec);
         mpp_clock_pause(dec->clocks[DEC_PRS_PREPARE]);
 
-        if (0 == mpp_packet_get_length(dec->mpp_pkt_in)) {
-            mpp_packet_deinit(&dec->mpp_pkt_in);
-            dec->mpp_pkt_in = NULL;
-        }
+        dec_release_input_packet(dec, 0);
     }
 
     task->status.curr_task_rdy = task_dec->valid;
@@ -1506,10 +1523,23 @@ static const char *timing_str[DEC_TIMING_BUTT] = {
 MPP_RET mpp_dec_set_cfg(MppDecCfgSet *dst, MppDecCfgSet *src)
 {
     MppDecBaseCfg *src_base = &src->base;
+    MppDecCbCfg *src_cb = &src->cb;
 
     if (src_base->change) {
         MppDecBaseCfg *dst_base = &dst->base;
         RK_U32 change = src_base->change;
+
+        if (change & MPP_DEC_CFG_CHANGE_TYPE)
+            dst_base->type = src_base->type;
+
+        if (change & MPP_DEC_CFG_CHANGE_CODING)
+            dst_base->coding = src_base->coding;
+
+        if (change & MPP_DEC_CFG_CHANGE_HW_TYPE)
+            dst_base->hw_type = src_base->hw_type;
+
+        if (change & MPP_DEC_CFG_CHANGE_BATCH_MODE)
+            dst_base->batch_mode = src_base->batch_mode;
 
         if (change & MPP_DEC_CFG_CHANGE_OUTPUT_FORMAT)
             dst_base->out_fmt = src_base->out_fmt;
@@ -1535,29 +1565,44 @@ MPP_RET mpp_dec_set_cfg(MppDecCfgSet *dst, MppDecCfgSet *src)
         if (change & MPP_DEC_CFG_CHANGE_ENABLE_VPROC)
             dst_base->enable_vproc = src_base->enable_vproc;
 
-        if (change & MPP_DEC_CFG_CHANGE_BATCH_MODE)
-            dst_base->batch_mode = src_base->batch_mode;
-
         dst_base->change = change;
         src_base->change = 0;
+    }
+
+    if (src_cb->change) {
+        MppDecCbCfg *dst_cb = &dst->cb;
+        RK_U32 change = src_cb->change;
+
+        if (change & MPP_DEC_CB_CFG_CHANGE_PKT_RDY) {
+            dst_cb->pkt_rdy_cb = src_cb->pkt_rdy_cb;
+            dst_cb->pkt_rdy_ctx = src_cb->pkt_rdy_ctx;
+            dst_cb->pkt_rdy_cmd = src_cb->pkt_rdy_cmd;
+        }
+
+        if (change & MPP_DEC_CB_CFG_CHANGE_FRM_RDY) {
+            dst_cb->frm_rdy_cb = src_cb->frm_rdy_cb;
+            dst_cb->frm_rdy_ctx = src_cb->frm_rdy_ctx;
+            dst_cb->frm_rdy_cmd = src_cb->frm_rdy_cmd;
+        }
+
+        dst_cb->change = change;
+        src_cb->change = 0;
     }
 
     return MPP_OK;
 }
 
-MPP_RET mpp_dec_callback(void *ctx, MppCbCmd cmd, void *param)
+MPP_RET mpp_dec_callback_hal_to_parser(const char *caller, void *ctx,
+                                       RK_S32 cmd, void *param)
 {
     MppDecImpl *p = (MppDecImpl *)ctx;
     MPP_RET ret = MPP_OK;
+    (void) caller;
 
-    switch (cmd) {
-    case DEC_PARSER_CALLBACK : {
-        if (p->parser)
-            ret = mpp_parser_callback(p->parser, param);
-    } break;
-    default : {
-    } break;
-    }
+    mpp_assert(cmd == DEC_PARSER_CALLBACK);
+
+    if (p->parser)
+        ret = mpp_parser_callback(p->parser, param);
 
     return ret;
 }
@@ -1595,11 +1640,13 @@ MPP_RET mpp_dec_init(MppDec *dec, MppDecInitCfg *cfg)
     coding = cfg->coding;
 
     mpp_assert(cfg->cfg);
+    mpp_dec_cfg_set_default(&p->cfg);
     mpp_dec_set_cfg(&p->cfg, cfg->cfg);
     mpp_dec_update_cfg(p);
 
-    p->dec_cb.callBack = mpp_dec_callback;
+    p->dec_cb.callBack = mpp_dec_callback_hal_to_parser;
     p->dec_cb.ctx = p;
+    p->dec_cb.cmd = DEC_PARSER_CALLBACK;
 
     status = &p->cfg.status;
 
@@ -1900,6 +1947,29 @@ MPP_RET mpp_dec_notify(MppDec ctx, RK_U32 flag)
     return MPP_OK;
 }
 
+MPP_RET mpp_dec_callback(MppDec ctx, MppDecEvent event, void *arg)
+{
+    MppDecImpl *dec = (MppDecImpl *)ctx;
+    MppDecCbCfg *cb = &dec->cfg.cb;
+    Mpp *mpp = (Mpp *)dec->mpp;
+    MPP_RET ret = MPP_OK;
+
+    switch (event) {
+    case MPP_DEC_EVENT_ON_PKT_RELEASE : {
+        if (cb->pkt_rdy_cb)
+            ret = cb->pkt_rdy_cb(cb->pkt_rdy_ctx, mpp->mCtx, cb->pkt_rdy_cmd, arg);
+    } break;
+    case MPP_DEC_EVENT_ON_FRM_READY : {
+        if (cb->frm_rdy_cb)
+            ret = cb->frm_rdy_cb(cb->frm_rdy_ctx, mpp->mCtx, cb->frm_rdy_cmd, arg);
+    } break;
+    default : {
+    } break;
+    }
+
+    return ret;
+}
+
 MPP_RET mpp_dec_control(MppDec ctx, MpiCmd cmd, void *param)
 {
     MPP_RET ret = MPP_OK;
@@ -1974,5 +2044,3 @@ MPP_RET mpp_dec_set_cfg_by_cmd(MppDecCfgSet *set, MpiCmd cmd, void *param)
 
     return ret;
 }
-
-

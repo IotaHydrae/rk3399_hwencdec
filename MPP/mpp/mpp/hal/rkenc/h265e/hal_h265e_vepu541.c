@@ -89,6 +89,8 @@ typedef struct H265eV541HalContext_t {
     MppBufferGroup      roi_grp;
     MppBuffer           roi_hw_buf;
     RK_U32              roi_buf_size;
+    MppBuffer           qpmap;
+
     MppEncCfgSet        *cfg;
 
     MppBufferGroup      tile_grp;
@@ -596,6 +598,9 @@ static void vepu541_h265_set_l2_regs(H265eV541HalContext *ctx, H265eV54xL2RegSet
             thd[i]  = hw->aq_thrd_i[i];
             step[i] = hw->aq_step_i[i] & 0x3f;
         }
+
+        regs->rdo_quant.quant_f_bias_I = 171;
+        regs->rdo_quant.quant_f_bias_P = 85;
     } else {
         RK_U8 *thd  = (RK_U8 *)&regs->aq_thd0;
         RK_S8 *step = (RK_S8 *)&regs->aq_qp_dlt0;
@@ -845,44 +850,50 @@ MPP_RET vepu541_h265_set_roi(void *dst_buf, void *src_buf, RK_S32 w, RK_S32 h)
 static MPP_RET
 vepu541_h265_set_roi_regs(H265eV541HalContext *ctx, H265eV541RegSet *regs)
 {
-    MppEncROICfg *cfg = (MppEncROICfg*)ctx->roi_data;
-    RK_U32 h =  ctx->cfg->prep.height;
-    RK_U32 w = ctx->cfg->prep.width;
-    RK_U8 *roi_base;
-
-    if (!cfg)
-        return MPP_OK;
-
-    if (cfg->number && cfg->regions) {
-        RK_U32 roi_buf_size = vepu541_get_roi_buf_size(w, h);
-
-        if (!ctx->roi_hw_buf || roi_buf_size != ctx->roi_buf_size) {
-            if (NULL == ctx->roi_grp)
-                mpp_buffer_group_get_internal(&ctx->roi_grp, MPP_BUFFER_TYPE_ION);
-            else if (roi_buf_size != ctx->roi_buf_size) {
-                if (ctx->roi_hw_buf) {
-                    mpp_buffer_put(ctx->roi_hw_buf);
-                    ctx->roi_hw_buf = NULL;
-                }
-                MPP_FREE(ctx->roi_buf);
-                mpp_buffer_group_clear(ctx->roi_grp);
-            }
-            mpp_assert(ctx->roi_grp);
-            if (NULL == ctx->roi_hw_buf)
-                mpp_buffer_get(ctx->roi_grp, &ctx->roi_hw_buf, roi_buf_size);
-
-            if (ctx->roi_buf == NULL)
-                ctx->roi_buf = mpp_malloc(RK_U8, roi_buf_size);
-
-            ctx->roi_buf_size = roi_buf_size;
-        }
-
+    if (ctx->qpmap) {
         regs->enc_pic.roi_en = 1;
-        regs->roi_addr_hevc = mpp_buffer_get_fd(ctx->roi_hw_buf);
-        roi_base = (RK_U8 *)mpp_buffer_get_ptr(ctx->roi_hw_buf);
-        vepu541_set_roi(ctx->roi_buf, cfg, w, h);
-        vepu541_h265_set_roi(roi_base, ctx->roi_buf, w, h);
+        regs->roi_addr_hevc = mpp_buffer_get_fd(ctx->qpmap);
+    } else {
+        MppEncROICfg *cfg = (MppEncROICfg*)ctx->roi_data;
+        RK_U32 h =  ctx->cfg->prep.height;
+        RK_U32 w = ctx->cfg->prep.width;
+        RK_U8 *roi_base;
+
+        if (!cfg)
+            return MPP_OK;
+
+        if (cfg->number && cfg->regions) {
+            RK_U32 roi_buf_size = vepu541_get_roi_buf_size(w, h);
+
+            if (!ctx->roi_hw_buf || roi_buf_size != ctx->roi_buf_size) {
+                if (NULL == ctx->roi_grp)
+                    mpp_buffer_group_get_internal(&ctx->roi_grp, MPP_BUFFER_TYPE_ION);
+                else if (roi_buf_size != ctx->roi_buf_size) {
+                    if (ctx->roi_hw_buf) {
+                        mpp_buffer_put(ctx->roi_hw_buf);
+                        ctx->roi_hw_buf = NULL;
+                    }
+                    MPP_FREE(ctx->roi_buf);
+                    mpp_buffer_group_clear(ctx->roi_grp);
+                }
+                mpp_assert(ctx->roi_grp);
+                if (NULL == ctx->roi_hw_buf)
+                    mpp_buffer_get(ctx->roi_grp, &ctx->roi_hw_buf, roi_buf_size);
+
+                if (ctx->roi_buf == NULL)
+                    ctx->roi_buf = mpp_malloc(RK_U8, roi_buf_size);
+
+                ctx->roi_buf_size = roi_buf_size;
+            }
+
+            regs->enc_pic.roi_en = 1;
+            regs->roi_addr_hevc = mpp_buffer_get_fd(ctx->roi_hw_buf);
+            roi_base = (RK_U8 *)mpp_buffer_get_ptr(ctx->roi_hw_buf);
+            vepu541_set_roi(ctx->roi_buf, cfg, w, h);
+            vepu541_h265_set_roi(roi_base, ctx->roi_buf, w, h);
+        }
     }
+
     return MPP_OK;
 }
 
@@ -988,7 +999,9 @@ static MPP_RET vepu541_h265_set_pp_regs(H265eV541RegSet *regs, VepuFmtCfg *fmt, 
     regs->src_fmt.rbuv_swap = fmt->rbuv_swap;
     regs->src_fmt.src_range = fmt->src_range;
     regs->src_proc.src_rot = prep_cfg->rotation;
-    if (prep_cfg->hor_stride) {
+    if (MPP_FRAME_FMT_IS_FBC(prep_cfg->format)) {
+        stridey = MPP_ALIGN(prep_cfg->width, 16);
+    } else if (prep_cfg->hor_stride) {
         stridey = prep_cfg->hor_stride;
     } else {
         if (regs->src_fmt.src_cfmt == VEPU541_FMT_BGRA8888 )
@@ -1882,9 +1895,11 @@ MPP_RET hal_h265e_v541_get_task(void *hal, HalEncTask *task)
     }
     if (!frm_status->reencode && mpp_frame_has_meta(task->frame)) {
         MppMeta meta = mpp_frame_get_meta(frame);
+
         mpp_meta_get_ptr(meta, KEY_ROI_DATA, (void **)&ctx->roi_data);
         mpp_meta_get_ptr(meta, KEY_OSD_DATA, (void **)&ctx->osd_cfg.osd_data);
         mpp_meta_get_ptr(meta, KEY_OSD_DATA2, (void **)&ctx->osd_cfg.osd_data2);
+        mpp_meta_get_buffer(meta, KEY_QPMAP0, &ctx->qpmap);
     }
     memset(&ctx->feedback, 0, sizeof(vepu541_h265_fbk));
 

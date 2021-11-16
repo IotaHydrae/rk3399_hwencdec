@@ -290,7 +290,7 @@ static MPP_RET put_buffer(MppBufferGroupImpl *group, MppBufferImpl *buffer,
     }
     pthread_mutex_unlock(&buffer->lock);
 
-    mpp_mem_pool_put(mpp_buffer_pool, buffer);
+    mpp_mem_pool_put_f(caller, mpp_buffer_pool, buffer);
 
     return MPP_OK;
 }
@@ -364,7 +364,7 @@ MPP_RET mpp_buffer_create(const char *tag, const char *caller,
         goto RET;
     }
 
-    p = (MppBufferImpl *)mpp_mem_pool_get(mpp_buffer_pool);
+    p = (MppBufferImpl *)mpp_mem_pool_get_f(caller, mpp_buffer_pool);
     if (NULL == p) {
         mpp_err_f("failed to allocate context\n");
         ret = MPP_ERR_MALLOC;
@@ -376,7 +376,7 @@ MPP_RET mpp_buffer_create(const char *tag, const char *caller,
     ret = func(group->allocator, info);
     if (ret) {
         mpp_err_f("failed to create buffer with size %d\n", info->size);
-        mpp_mem_pool_put(mpp_buffer_pool, p);
+        mpp_mem_pool_put_f(caller, mpp_buffer_pool, p);
         ret = MPP_ERR_MALLOC;
         goto RET;
     }
@@ -619,7 +619,6 @@ MPP_RET mpp_buffer_group_reset(MppBufferGroupImpl *p)
 
     pthread_mutex_lock(&p->buf_lock);
 
-    AutoMutex auto_lock(MppBufferService::get_lock());
     buf_grp_add_log(p, GRP_RESET, NULL);
 
     if (!list_empty(&p->list_used)) {
@@ -695,32 +694,29 @@ void mpp_buffer_service_dump(const char *info)
 
 void MppBufferService::inc_total(RK_U32 size)
 {
-    AutoMutex auto_lock(MppBufferService::get_lock());
-    total_size += size;
-    if (total_size > total_max)
-        total_max = total_size;
+    RK_U32 total = __sync_add_and_fetch(&total_size, size);
+    bool ret;
+
+    do {
+        RK_U32 old_max = total_max;
+        RK_U32 new_max = MPP_MAX(total, old_max);
+
+        ret = __sync_bool_compare_and_swap(&total_max, old_max, new_max);
+    } while (!ret);
 }
 
 void MppBufferService::dec_total(RK_U32 size)
 {
-    if (finalizing) {
-        total_size -= size;
-        return;
-    }
-
-    AutoMutex auto_lock(MppBufferService::get_lock());
-    total_size -= size;
+    __sync_fetch_and_sub(&total_size, size);
 }
 
 RK_U32 mpp_buffer_total_now()
 {
-    AutoMutex auto_lock(MppBufferService::get_lock());
     return MppBufferService::get_instance()->get_total_now();
 }
 
 RK_U32 mpp_buffer_total_max()
 {
-    AutoMutex auto_lock(MppBufferService::get_lock());
     return MppBufferService::get_instance()->get_total_max();
 }
 
@@ -869,14 +865,11 @@ MppBufferGroupImpl *MppBufferService::get_group(const char *tag, const char *cal
                                                 RK_U32 is_misc)
 {
     MppBufferType buffer_type = (MppBufferType)(type & MPP_BUFFER_TYPE_MASK);
-    MppBufferGroupImpl *p = (MppBufferGroupImpl *)mpp_mem_pool_get(mpp_buf_grp_pool);
+    MppBufferGroupImpl *p = (MppBufferGroupImpl *)mpp_mem_pool_get_f(caller, mpp_buf_grp_pool);
     if (NULL == p) {
         mpp_err("MppBufferService failed to allocate group context\n");
         return NULL;
     }
-
-    AutoMutex auto_lock(get_lock());
-    RK_U32 id = get_group_id();
 
     INIT_LIST_HEAD(&p->list_group);
     INIT_LIST_HEAD(&p->list_used);
@@ -887,16 +880,10 @@ MppBufferGroupImpl *MppBufferService::get_group(const char *tag, const char *cal
     p->log_runtime_en   = (mpp_buffer_debug & MPP_BUF_DBG_OPS_RUNTIME) ? (1) : (0);
     p->log_history_en   = (mpp_buffer_debug & MPP_BUF_DBG_OPS_HISTORY) ? (1) : (0);
 
-    if (tag) {
-        snprintf(p->tag, sizeof(p->tag), "%s_%d", tag, id);
-    } else {
-        snprintf(p->tag, sizeof(p->tag), "unknown");
-    }
     p->caller   = caller;
     p->mode     = mode;
     p->type     = buffer_type;
     p->limit    = BUFFER_GROUP_SIZE_DEFAULT;
-    p->group_id = id;
     p->clear_on_exit = (mpp_buffer_debug & MPP_BUF_DBG_CLR_ON_EXIT) ? (1) : (0);
     p->dump_on_exit  = (mpp_buffer_debug & MPP_BUF_DBG_DUMP_ON_EXIT) ? (1) : (0);
 
@@ -905,9 +892,6 @@ MppBufferGroupImpl *MppBufferService::get_group(const char *tag, const char *cal
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&p->buf_lock, &attr);
     pthread_mutexattr_destroy(&attr);
-
-    list_add_tail(&p->list_group, &mListGroup);
-    hash_add(mHashGroup, &p->hlist, p->group_id);
 
     p->allocator = mAllocator[type];
     p->alloc_api = mAllocatorApi[type];
@@ -918,10 +902,23 @@ MppBufferGroupImpl *MppBufferService::get_group(const char *tag, const char *cal
     if (p->log_history_en)
         p->logs = buf_logs_init(BUFFER_OPS_MAX_COUNT);
 
-    buf_grp_add_log(p, GRP_CREATE, caller);
-
     mpp_assert(mode < MPP_BUFFER_MODE_BUTT);
     mpp_assert(buffer_type < MPP_BUFFER_TYPE_BUTT);
+
+    AutoMutex auto_lock(get_lock());
+    RK_U32 id = get_group_id();
+
+    if (tag) {
+        snprintf(p->tag, sizeof(p->tag), "%s_%d", tag, id);
+    } else {
+        snprintf(p->tag, sizeof(p->tag), "unknown");
+    }
+    p->group_id = id;
+
+    list_add_tail(&p->list_group, &mListGroup);
+    hash_add(mHashGroup, &p->hlist, id);
+
+    buf_grp_add_log(p, GRP_CREATE, caller);
 
     if (is_misc) {
         misc[mode][buffer_type] = id;

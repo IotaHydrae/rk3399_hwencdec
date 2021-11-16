@@ -85,7 +85,7 @@ static const FilterdColBufRatio filterd_fbc_off[CTU][FMT] = {
 
 #define CABAC_TAB_ALIGEND_SIZE          (MPP_ALIGN(27456, SZ_4K))
 #define SPSPPS_ALIGNED_SIZE             (MPP_ALIGN(112 * 64, SZ_4K))
-#define RPS_ALIGEND_SIZE                (MPP_ALIGN(600 * 32, SZ_4K))
+#define RPS_ALIGEND_SIZE                (MPP_ALIGN(400 * 8, SZ_4K))
 #define SCALIST_ALIGNED_SIZE            (MPP_ALIGN(81 * 1360, SZ_4K))
 #define INFO_BUFFER_SIZE                (SPSPPS_ALIGNED_SIZE + RPS_ALIGEND_SIZE + SCALIST_ALIGNED_SIZE)
 #define ALL_BUFFER_SIZE(cnt)            (CABAC_TAB_ALIGEND_SIZE + INFO_BUFFER_SIZE *cnt)
@@ -1240,7 +1240,7 @@ ERR_PROC:
         hw_regs->irq_status.reg224.buf_empty_sta) {
         if (!reg_cxt->fast_mode) {
             if (reg_cxt->dec_cb)
-                mpp_callback(reg_cxt->dec_cb, DEC_PARSER_CALLBACK, &task->dec);
+                mpp_callback(reg_cxt->dec_cb, &task->dec);
         } else {
             MppFrame mframe = NULL;
             mpp_buf_slot_get_prop(reg_cxt->slots, task->dec.output,

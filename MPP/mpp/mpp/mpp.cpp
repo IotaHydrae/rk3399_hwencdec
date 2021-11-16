@@ -36,6 +36,8 @@
 #include "mpp_frame_impl.h"
 #include "mpp_packet_impl.h"
 
+#include "mpp_dec_cfg_impl.h"
+
 #define MPP_TEST_FRAME_SIZE     SZ_1M
 #define MPP_TEST_PACKET_SIZE    SZ_512K
 
@@ -58,7 +60,7 @@ static void *list_wraper_frame(void *arg)
     return NULL;
 }
 
-Mpp::Mpp()
+Mpp::Mpp(MppCtx ctx = NULL)
     : mPackets(NULL),
       mFrames(NULL),
       mTimeStamps(NULL),
@@ -81,6 +83,7 @@ Mpp::Mpp()
       mOutputTimeout(MPP_POLL_BUTT),
       mInputTask(NULL),
       mEosTask(NULL),
+      mCtx(ctx),
       mDec(NULL),
       mEnc(NULL),
       mEncVersion(0),
@@ -95,6 +98,7 @@ Mpp::Mpp()
     mpp_env_get_u32("mpp_debug", &mpp_debug, 0);
 
     memset(&mDecInitcfg, 0, sizeof(mDecInitcfg));
+    mpp_dec_cfg_set_default(&mDecInitcfg);
     mDecInitcfg.base.enable_vproc = 1;
     mDecInitcfg.base.change  |= MPP_DEC_CFG_CHANGE_ENABLE_VPROC;
 
@@ -291,6 +295,16 @@ MPP_RET Mpp::start()
 }
 
 MPP_RET Mpp::stop()
+{
+    return MPP_OK;
+}
+
+MPP_RET Mpp::pause()
+{
+    return MPP_OK;
+}
+
+MPP_RET Mpp::resume()
 {
     return MPP_OK;
 }
@@ -852,6 +866,20 @@ MPP_RET Mpp::control_mpp(MpiCmd cmd, MppParam param)
             mOutputTimeout = timeout;
     } break;
 
+    case MPP_START : {
+        start();
+    } break;
+    case MPP_STOP : {
+        stop();
+    } break;
+
+    case MPP_PAUSE : {
+        pause();
+    } break;
+    case MPP_RESUME : {
+        resume();
+    } break;
+
     default : {
         ret = MPP_NOK;
     } break;
@@ -947,9 +975,27 @@ MPP_RET Mpp::control_dec(MpiCmd cmd, MppParam param)
     } break;
     case MPP_DEC_GET_VPUMEM_USED_COUNT :
     case MPP_DEC_SET_OUTPUT_FORMAT :
-    case MPP_DEC_QUERY :
-    case MPP_DEC_SET_CFG : {
+    case MPP_DEC_QUERY : {
         ret = mpp_dec_control(mDec, cmd, param);
+    } break;
+    case MPP_DEC_SET_CFG : {
+        if (mDec)
+            ret = mpp_dec_control(mDec, cmd, param);
+        else if (param) {
+            MppDecCfgImpl *dec_cfg = (MppDecCfgImpl *)param;
+
+            ret = mpp_dec_set_cfg(&mDecInitcfg, &dec_cfg->cfg);
+        }
+    } break;
+    case MPP_DEC_GET_CFG : {
+        if (mDec)
+            ret = mpp_dec_control(mDec, cmd, param);
+        else if (param) {
+            MppDecCfgImpl *dec_cfg = (MppDecCfgImpl *)param;
+
+            memcpy(&dec_cfg->cfg, &mDecInitcfg, sizeof(dec_cfg->cfg));
+            ret = MPP_OK;
+        }
     } break;
     default : {
     } break;

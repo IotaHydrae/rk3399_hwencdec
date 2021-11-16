@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/mpp_linux_demo.dir/main.cpp.o CMakeFiles/mpp_linux_demo.dir/mpp/Codec.cpp.o CMakeFiles/mpp_linux_demo.dir/thread/Thread.cpp.o CMakeFiles/mpp_linux_demo.dir/rkrga/RGA.cpp.o CMakeFiles/mpp_linux_demo.dir/rkdrm/bo.c.o CMakeFiles/mpp_linux_demo.dir/rkdrm/dev.c.o CMakeFiles/mpp_linux_demo.dir/rkdrm/modeset.c.o -o mpp_linux_demo  -lmpp -lpthread -ldrm 

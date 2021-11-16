@@ -18,22 +18,33 @@
 #define __MPP_DEC_CFG_H__
 
 #include "mpp_frame.h"
+#include "rk_vdec_cmd.h"
 
 typedef enum MppDecCfgChange_e {
-    MPP_DEC_CFG_CHANGE_OUTPUT_FORMAT    = (1 << 0),
-    MPP_DEC_CFG_CHANGE_FAST_OUT         = (1 << 1),
-    MPP_DEC_CFG_CHANGE_FAST_PARSE       = (1 << 2),
-    MPP_DEC_CFG_CHANGE_SPLIT_PARSE      = (1 << 3),
-    MPP_DEC_CFG_CHANGE_INTERNAL_PTS     = (1 << 4),
-    MPP_DEC_CFG_CHANGE_SORT_PTS         = (1 << 5),
-    MPP_DEC_CFG_CHANGE_DISABLE_ERROR    = (1 << 6),
-    MPP_DEC_CFG_CHANGE_ENABLE_VPROC     = (1 << 7),
-    MPP_DEC_CFG_CHANGE_BATCH_MODE       = (1 << 8),
+    MPP_DEC_CFG_CHANGE_TYPE             = (1 << 0),
+    MPP_DEC_CFG_CHANGE_CODING           = (1 << 1),
+    MPP_DEC_CFG_CHANGE_HW_TYPE          = (1 << 2),
+    MPP_DEC_CFG_CHANGE_BATCH_MODE       = (1 << 3),
+
+    MPP_DEC_CFG_CHANGE_OUTPUT_FORMAT    = (1 << 8),
+    MPP_DEC_CFG_CHANGE_FAST_OUT         = (1 << 9),
+    MPP_DEC_CFG_CHANGE_FAST_PARSE       = (1 << 10),
+    MPP_DEC_CFG_CHANGE_SPLIT_PARSE      = (1 << 11),
+    MPP_DEC_CFG_CHANGE_INTERNAL_PTS     = (1 << 12),
+    MPP_DEC_CFG_CHANGE_SORT_PTS         = (1 << 13),
+    MPP_DEC_CFG_CHANGE_DISABLE_ERROR    = (1 << 14),
+    MPP_DEC_CFG_CHANGE_ENABLE_VPROC     = (1 << 15),
+
     MPP_DEC_CFG_CHANGE_ALL              = (0xFFFFFFFF),
 } MppDecCfgChange;
 
 typedef struct MppDecBaseCfg_t {
     RK_U64              change;
+
+    MppCtxType          type;
+    MppCodingType       coding;
+    RK_S32              hw_type;
+    RK_U32              batch_mode;
 
     MppFrameFormat      out_fmt;
     RK_U32              fast_out;
@@ -43,8 +54,28 @@ typedef struct MppDecBaseCfg_t {
     RK_U32              sort_pts;
     RK_U32              disable_error;
     RK_U32              enable_vproc;
-    RK_U32              batch_mode;
 } MppDecBaseCfg;
+
+typedef enum MppDecCbCfgChange_e {
+    MPP_DEC_CB_CFG_CHANGE_PKT_RDY       = (1 << 0),
+    MPP_DEC_CB_CFG_CHANGE_FRM_RDY       = (1 << 1),
+
+    MPP_DEC_CB_CFG_CHANGE_ALL           = (0xFFFFFFFF),
+} MppDecCbCfgChange;
+
+typedef struct MppDecCbCfg_t {
+    RK_U64              change;
+
+    /* notify packet process done and can accept new packet */
+    MppExtCbFunc        pkt_rdy_cb;
+    MppExtCbCtx         pkt_rdy_ctx;
+    RK_S32              pkt_rdy_cmd;
+
+    /* notify frame ready for output */
+    MppExtCbFunc        frm_rdy_cb;
+    MppExtCbCtx         frm_rdy_ctx;
+    RK_S32              frm_rdy_cmd;
+} MppDecCbCfg;
 
 typedef struct MppDecStatusCfg_t {
     RK_U32              hal_task_count;
@@ -54,6 +85,7 @@ typedef struct MppDecStatusCfg_t {
 typedef struct MppDecCfgSet_t {
     MppDecBaseCfg       base;
     MppDecStatusCfg     status;
+    MppDecCbCfg         cb;
 } MppDecCfgSet;
 
 /*

@@ -449,7 +449,7 @@ MPP_RET mpp_create(MppCtx *ctx, MppApi **mpi)
         }
 
         memset(p, 0, sizeof(*p));
-        p->ctx = new Mpp();
+        p->ctx = new Mpp(p);
         if (NULL == p->ctx) {
             mpp_free(p);
             mpp_err_f("failed to new Mpp\n");
@@ -514,34 +514,6 @@ MPP_RET mpp_destroy(MppCtx ctx)
 
         mpp_free(p);
     } while (0);
-
-    mpi_dbg_func("leave ctx %p ret %d\n", ctx, ret);
-    return ret;
-}
-
-MPP_RET mpp_start(MppCtx ctx)
-{
-    mpi_dbg_func("enter ctx %p\n", ctx);
-
-    MpiImpl *p = (MpiImpl*)ctx;
-    MPP_RET ret = check_mpp_ctx(p);
-
-    if (MPP_OK == ret)
-        ret = p->ctx->start();
-
-    mpi_dbg_func("leave ctx %p ret %d\n", ctx, ret);
-    return ret;
-}
-
-MPP_RET mpp_stop(MppCtx ctx)
-{
-    mpi_dbg_func("enter ctx %p\n", ctx);
-
-    MpiImpl *p = (MpiImpl*)ctx;
-    MPP_RET ret = check_mpp_ctx(p);
-
-    if (MPP_OK == ret)
-        ret = p->ctx->stop();
 
     mpi_dbg_func("leave ctx %p ret %d\n", ctx, ret);
     return ret;

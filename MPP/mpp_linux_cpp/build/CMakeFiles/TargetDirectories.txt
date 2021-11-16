@@ -1,0 +1,3 @@
+/home/huazheng/code_repo/rk3399_hwencdec/MPP/mpp_linux_cpp/build/CMakeFiles/rebuild_cache.dir
+/home/huazheng/code_repo/rk3399_hwencdec/MPP/mpp_linux_cpp/build/CMakeFiles/edit_cache.dir
+/home/huazheng/code_repo/rk3399_hwencdec/MPP/mpp_linux_cpp/build/CMakeFiles/mpp_linux_demo.dir
