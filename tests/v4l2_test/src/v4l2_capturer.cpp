@@ -48,7 +48,7 @@ int v4l2_capturer::init()
     m_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     m_fmt.fmt.pix.width = 640;
     m_fmt.fmt.pix.height = 480;
-    m_fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+    m_fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
     m_fmt.fmt.pix.field       = V4L2_FIELD_ANY;
     if(ioctl(m_fd, VIDIOC_S_FMT, &m_fmt) < 0) {
         perror("ioctl VIDIOC_S_FMT failed!");
@@ -154,7 +154,7 @@ int v4l2_capturer::get_frame()
     }
 	
     /* make file length */
-    lseek(out_fd, m_total_bytes - 1, SEEK_END);
+    lseek(out_fd, m_total_bytes - 1, SEEK_ END);
     write(out_fd, "", 1);   /* because of COW? */
     printf("total_bytes:%d\n", m_total_bytes);
     printf("current:%d\n", m_rb_current);

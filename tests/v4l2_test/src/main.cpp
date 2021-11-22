@@ -24,15 +24,12 @@ int main(int argc, char const *argv[])
     capturer.query_supported_format_new();
     capturer.start();
 
-	int i=25;
-	char filename[10];
-
-	while(1){
+	/*while(1){
 	    frame_count=capturer.get_frame();
 	    if(frame_count==25*10)break;
-	}
-	/*capturer.get_frame();
-    capturer.save_fbdata_to_file_by_mmap("./out.jpg");*/
+	}*/
+	
+	capturer.get_frame();
     capturer.stop();
     return 0;
 }
